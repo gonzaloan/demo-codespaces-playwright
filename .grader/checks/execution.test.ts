@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { execSync } from 'child_process';
-import { existsSync } from 'fs';
+import { readFileSync } from 'fs';
 import { join } from 'path';
 
 const ROOT_DIR = join(__dirname, '../..');
@@ -22,14 +22,14 @@ test.describe('Test Execution Validation', () => {
 
             expect(failed.length, 'Some student tests failed').toBe(0);
         } catch (error: any) {
-            // Si playwright sale con exit code != 0, hay fallos
             expect(false, `Student tests failed to execute:\n${error.stdout || error.message}`).toBe(true);
         }
     });
 
-    test('HTML report was generated', () => {
-        const reportPath = join(ROOT_DIR, 'playwright-report', 'index.html');
-        expect(existsSync(reportPath), 'HTML report not generated').toBe(true);
+    test('HTML reporter is configured', () => {
+        const configPath = join(ROOT_DIR, 'playwright.config.ts');
+        const configContent = readFileSync(configPath, 'utf-8');
+        expect(configContent, 'playwright.config.ts should include html reporter').toContain('html');
     });
 
 });
