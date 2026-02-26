@@ -1,0 +1,8 @@
+node_modules/
+dist/
+playwright-report/
+grader-report/
+grader-results.json
+test-results/
+.DS_Store
+.idea

@@ -1,0 +1,23 @@
+{
+  "name": "lab-01-playwright-ecommerce",
+  "version": "1.0.0",
+  "description": "Lab 01 - Playwright E2E Testing on nopCommerce",
+  "scripts": {
+    "test": "npx playwright test --config=playwright.config.ts",
+    "test:report": "npx playwright show-report",
+    "grade": "npx playwright test --config=.grader/grader.config.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "@types/node": "^22.19.11",
+    "typescript": "^5.9.3"
+  },
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}
