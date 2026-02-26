@@ -6,7 +6,7 @@
 |---|---|
 | **Type** | eCommerce Platform |
 | **URL** | https://demo.nopcommerce.com/ |
-
+n
 ## Objective
 
 Create an end-to-end automation test for the **User Registration** flow using Playwright with TypeScript.
