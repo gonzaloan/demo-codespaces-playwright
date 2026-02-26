@@ -1,0 +1,9 @@
+{
+  "firstName": "John",
+  "lastName": "Doe",
+  "email": "john.doe.{{timestamp}}@test.com",
+  "password": "Test@12345",
+  "confirmPassword": "Test@12345",
+  "gender": "male",
+  "company": "Test Corp"
+}

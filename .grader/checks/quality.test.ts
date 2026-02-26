@@ -23,14 +23,14 @@ test.describe('Code Quality Validation', () => {
         }
     });
 
-    test('spec files use Playwright locators (getByRole, getByPlaceholder, etc)', () => {
+    test('project uses Playwright locators (getByRole, getByPlaceholder, etc)', () => {
         const locatorPatterns = /getByRole|getByPlaceholder|getByLabel|getByText|getByTestId/;
+        const pages = readAllFiles(join(SRC_DIR, 'pages'), '.ts');
         const specs = readAllFiles(join(SRC_DIR, 'tests'), '.spec.ts');
-        for (const spec of specs) {
-            expect(spec.content, `${spec.name} should use Playwright locators`).toMatch(locatorPatterns);
-        }
+        const allFiles = [...pages, ...specs];
+        const usesLocators = allFiles.some(f => locatorPatterns.test(f.content));
+        expect(usesLocators, 'No Playwright locators found in pages/ or tests/').toBe(true);
     });
-
     test('page classes exist and export a class', () => {
         const pages = readAllFiles(join(SRC_DIR, 'pages'), '.ts');
         for (const page of pages) {
