@@ -80,7 +80,9 @@ jobs:
               'page classes exist and export a class':
                 'Your page file must have: `export class RegisterPage { constructor(private page: Page) {} }`',
               'test data is loaded from JSON files':
-                'Import your data file: `import user from "../data/user.json"` then access `user.email`, `user.password`, etc.',
+                'Keep static config (success messages, page titles) in a JSON file under `src/data/` and import it in your spec.',
+              'tests use faker for dynamic data generation':
+                'Install and import faker: `import { faker } from "@faker-js/faker"` then use `faker.person.firstName()`, `faker.internet.email()`, etc.',
               'no unused imports detected':
                 'Remove any `import { X }` where `X` is never referenced in the file body.',
               'tests navigate to the target application':
