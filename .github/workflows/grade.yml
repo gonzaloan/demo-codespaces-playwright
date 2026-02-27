@@ -36,7 +36,8 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const fs = require('fs');
+            const fs   = require('fs');
+            const path = require('path');
 
             let results;
             try {
@@ -46,10 +47,48 @@ jobs:
               return;
             }
 
-            const categoryNames = {
+            // Detect if the student has written any code yet
+            const hasStudentFiles = (() => {
+              try {
+                const src = 'src';
+                return (
+                  fs.readdirSync(path.join(src, 'pages')).some(f => f.endsWith('.ts')) ||
+                  fs.readdirSync(path.join(src, 'tests')).some(f => f.endsWith('.spec.ts')) ||
+                  fs.readdirSync(path.join(src, 'data')).some(f => f.endsWith('.json'))
+                );
+              } catch { return false; }
+            })();
+
+            const categoryIcons = {
               'Project Structure Validation': '📁 Structure',
-              'Code Quality Validation': '🔍 Code Quality',
-              'Test Execution Validation': '▶️ Execution',
+              'Code Quality Validation':      '🔍 Code Quality',
+              'Test Execution Validation':    '▶️ Execution',
+            };
+
+            // Actionable hint per check title (must match test() strings exactly)
+            const hints = {
+              'pages/ directory exists and has .ts files':
+                'Create `src/pages/RegisterPage.ts` with an exported class that wraps Playwright page actions.',
+              'tests/ directory exists and has .spec.ts files':
+                'Create `src/tests/registration.spec.ts` — filename **must** end in `.spec.ts`.',
+              'data/ directory exists and has .json files':
+                'Create `src/data/user.json` with fields: `firstName`, `lastName`, `email`, `password`.',
+              'spec files use expect() assertions':
+                'Add assertions such as `await expect(page).toHaveURL(...)` or `await expect(locator).toBeVisible()`.',
+              'project uses Playwright locators (getByRole, getByPlaceholder, etc)':
+                'Use: `page.getByRole("button", { name: "Register" })`, `page.getByLabel("Email")`, `page.getByPlaceholder("...")`',
+              'page classes exist and export a class':
+                'Your page file must have: `export class RegisterPage { constructor(private page: Page) {} }`',
+              'test data is loaded from JSON files':
+                'Import your data file: `import user from "../data/user.json"` then access `user.email`, `user.password`, etc.',
+              'no unused imports detected':
+                'Remove any `import { X }` where `X` is never referenced in the file body.',
+              'tests navigate to the target application':
+                'Call `await page.goto("/")` or use the full URL `https://demo.nopcommerce.com/` in your test.',
+              'student tests execute successfully':
+                'Run `npm test` locally to see the full error output. Fix all failing assertions before pushing.',
+              'HTML reporter is configured':
+                "Add `['html', { open: 'never' }]` to the `reporter` array in `playwright.config.ts`.",
             };
 
             const categories = [];
@@ -59,53 +98,91 @@ jobs:
               }
             }
 
-            const allSpecs = categories.flatMap(c => c.specs);
+            const allSpecs    = categories.flatMap(c => c.specs);
             const totalPassed = allSpecs.filter(s => s.ok).length;
-            const totalFailed = allSpecs.filter(s => !s.ok).length;
+            const total       = allSpecs.length;
+            const pct         = total > 0 ? Math.round((totalPassed / total) * 100) : 0;
 
-            function formatError(spec) {
-              const error = spec.tests?.[0]?.results?.[0]?.error?.message;
-              if (!error) return '';
-              const clean = error.replace(/\x1b\[[0-9;]*m/g, '');
-              const lines = clean.split('\n')
+            function progressBar(passed, total) {
+              const filled = Math.round((passed / total) * 10);
+              return '`' + '█'.repeat(filled) + '░'.repeat(10 - filled) + '`';
+            }
+
+            function statusMsg(pct) {
+              if (pct === 100) return '🎉 Perfect score! Excellent work!';
+              if (pct >= 80)   return '🔥 Almost there — just a few more to fix!';
+              if (pct >= 50)   return '💪 Good progress, keep going!';
+              if (pct >= 20)   return '🚀 You\'ve started! Keep building.';
+              return '📝 Time to write some code!';
+            }
+
+            function extractExecError(spec) {
+              const msg = spec.tests?.[0]?.results?.[0]?.error?.message ?? '';
+              if (!msg) return '';
+              return msg
+                .replace(/\x1b\[[0-9;]*m/g, '')
+                .split('\n')
                 .map(l => l.trim())
-                .filter(l => l.length > 0
-                  && !l.startsWith('at ')
-                  && !l.startsWith('Call log')
-                  && !l.startsWith('expect(')
-                  && !l.startsWith('Expected')
-                  && !l.startsWith('Received'));
-              return lines.slice(0, 4).map(l => `  > ${l}`).join('\n');
+                .filter(l => l.length > 0)
+                .slice(0, 8)
+                .join('\n');
             }
 
-            let md = `## Grader Results\n\n`;
-            md += `**${totalPassed} passed** / **${totalFailed} failed** out of ${allSpecs.length} checks\n\n`;
+            let md = '## 🎓 Lab Grader Results\n\n';
+            md += `> **Score: ${totalPassed} / ${total} checks passed (${pct}%)** — ${statusMsg(pct)}\n`;
+            md += `> ${progressBar(totalPassed, total)}\n\n`;
+            md += '---\n\n';
 
-            if (totalFailed > 0) {
-              md += `### ❌ Failed\n\n`;
-              for (const cat of categories) {
-                const failed = cat.specs.filter(s => !s.ok);
-                if (!failed.length) continue;
-                md += `**${categoryNames[cat.name] ?? cat.name}**\n\n`;
-                for (const spec of failed) {
-                  md += `- ${spec.title}\n`;
-                  const err = formatError(spec);
-                  if (err) md += `${err}\n`;
+            // Show "Getting Started" guide when no student files are found
+            if (!hasStudentFiles) {
+              md += '### 🚀 Getting Started\n\n';
+              md += '*It looks like you haven\'t added any code yet — here\'s where to begin:*\n\n';
+              md += '1. Read `docs/instructions.md` for the full test scenario\n';
+              md += '2. Create your page class → `src/pages/RegisterPage.ts`\n';
+              md += '3. Create your test data → `src/data/user.json`\n';
+              md += '4. Write your test spec → `src/tests/registration.spec.ts`\n';
+              md += '5. Run `npm test` locally to verify before pushing\n\n';
+              md += '---\n\n';
+            }
+
+            // One collapsible section per category
+            for (const cat of categories) {
+              const icon        = categoryIcons[cat.name] ?? cat.name;
+              const catPassed   = cat.specs.filter(s => s.ok).length;
+              const catTotal    = cat.specs.length;
+              const summaryIcon = catPassed === catTotal ? '✅' : catPassed === 0 ? '❌' : '⚠️';
+
+              md += '<details>\n';
+              md += `<summary>${summaryIcon} ${icon} — ${catPassed}/${catTotal} passed</summary>\n\n`;
+              md += '| Check | | Hint |\n';
+              md += '|---|---|---|\n';
+
+              const execErrors = [];
+              for (const spec of cat.specs) {
+                const status = spec.ok ? '✅' : '❌';
+                const hint   = spec.ok ? '' : (hints[spec.title] ?? '');
+                md += `| ${spec.title} | ${status} | ${hint} |\n`;
+                if (!spec.ok && cat.name === 'Test Execution Validation') {
+                  const err = extractExecError(spec);
+                  if (err) execErrors.push({ title: spec.title, err });
                 }
-                md += '\n';
               }
+
+              // Show execution error details below the table
+              for (const { title, err } of execErrors) {
+                md += `\n**Error details — "${title}":**\n`;
+                md += '```\n' + err + '\n```\n';
+              }
+
+              md += '\n</details>\n\n';
             }
 
-            if (totalPassed > 0) {
-              md += `### ✅ Passed\n\n`;
-              for (const cat of categories) {
-                const passed = cat.specs.filter(s => s.ok);
-                if (!passed.length) continue;
-                md += `**${categoryNames[cat.name] ?? cat.name}**\n\n`;
-                for (const spec of passed) md += `- ${spec.title}\n`;
-                md += '\n';
-              }
-            }
+            md += '---\n\n';
+            md += '### 📚 Resources\n\n';
+            md += '- [Playwright Locators](https://playwright.dev/docs/locators) — `getByRole`, `getByLabel`, `getByPlaceholder`\n';
+            md += '- [Page Object Model](https://playwright.dev/docs/pom) — how to structure page classes\n';
+            md += '- [Assertions reference](https://playwright.dev/docs/test-assertions) — how to use `expect()`\n';
+            md += '- Lab instructions: `docs/instructions.md`\n';
 
             await core.summary.addRaw(md).write();
 

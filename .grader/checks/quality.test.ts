@@ -14,6 +14,10 @@ function readAllFiles(dir: string, ext: string): { name: string; content: string
     }
 }
 
+function escapeRegex(str: string): string {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 test.describe('Code Quality Validation', () => {
 
     test('spec files use expect() assertions', () => {
@@ -32,6 +36,7 @@ test.describe('Code Quality Validation', () => {
         const usesLocators = allFiles.some(f => locatorPatterns.test(f.content));
         expect(usesLocators, 'No Playwright locators found in pages/ or tests/').toBe(true);
     });
+
     test('page classes exist and export a class', () => {
         const pages = readAllFiles(join(SRC_DIR, 'pages'), '.ts');
         expect(pages.length, 'No page class files found in pages/').toBeGreaterThan(0);
@@ -55,16 +60,27 @@ test.describe('Code Quality Validation', () => {
         ];
         expect(allFiles.length, 'No source files found to validate imports').toBeGreaterThan(0);
         for (const file of allFiles) {
-            const imports = [...file.content.matchAll(/import\s+\{([^}]+)\}/g)];
-            for (const match of imports) {
-                const names = match[1].split(',').map(n => n.trim());
+            const importMatches = [...file.content.matchAll(/^import\s+\{([^}]+)\}[^\n]*/gm)];
+            for (const match of importMatches) {
+                const names = match[1].split(',').map(n => n.trim()).filter(n => n.length > 0);
+                // Remove the import line itself before checking for usage
+                const contentWithoutImport = file.content.replace(match[0], '');
                 for (const name of names) {
-                    const usageCount = file.content.split(name).length - 1;
-                    // 1 from import + at least 1 usage = minimum 2
-                    expect(usageCount, `${file.name}: '${name}' imported but never used`).toBeGreaterThan(1);
+                    const usageRegex = new RegExp(`\\b${escapeRegex(name)}\\b`);
+                    expect(
+                        usageRegex.test(contentWithoutImport),
+                        `${file.name}: '${name}' imported but never used`
+                    ).toBe(true);
                 }
             }
         }
+    });
+
+    test('tests navigate to the target application', () => {
+        const specs = readAllFiles(join(SRC_DIR, 'tests'), '.spec.ts');
+        expect(specs.length, 'No .spec.ts files found in tests/').toBeGreaterThan(0);
+        const navigates = specs.some(f => f.content.includes('goto('));
+        expect(navigates, 'No test calls page.goto() — make sure your test navigates to the application').toBe(true);
     });
 
 });
