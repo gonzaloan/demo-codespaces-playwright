@@ -4,6 +4,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  pull-requests: write
+
 jobs:
   grade:
     runs-on: ubuntu-latest
@@ -27,6 +30,77 @@ jobs:
 
       - name: Run grader
         run: npm run grade
+
+      - name: Publish results
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            let results;
+            try {
+              results = JSON.parse(fs.readFileSync('grader-results.json', 'utf-8'));
+            } catch (e) {
+              await core.summary.addRaw('Could not read grader results.').write();
+              return;
+            }
+            
+            function getSpecs(suite) {
+                const specs = [];
+                if (suite.specs) specs.push(...suite.specs);
+                if (suite.suites) for (const s of suite.suites) specs.push(...getSpecs(s));
+                return specs;
+              }
+
+              const allSpecs = results.suites?.flatMap(s => getSpecs(s)) ?? [];
+              const passed = allSpecs.filter(s => s.ok);
+              const failed = allSpecs.filter(s => !s.ok);
+
+              let md = `## Grader Results\n\n`;
+              md += `**${passed.length} passed** / **${failed.length} failed** out of ${allSpecs.length} checks\n\n`;
+
+              if (failed.length > 0) {
+                md += `### Failed\n\n`;
+                for (const spec of failed) {
+                  md += `- **${spec.title}**\n`;
+                  const error = spec.tests?.[0]?.results?.[0]?.error?.message;
+                  if (error) {
+                    const clean = error.replace(/\x1b\[[0-9;]*m/g, '').split('\n')[0];
+                    md += `  > ${clean}\n`;
+                  }
+                }
+                md += '\n';
+              }
+
+              if (passed.length > 0) {
+                md += `### Passed\n\n`;
+                for (const spec of passed) md += `- ${spec.title}\n`;
+              }
+
+              await core.summary.addRaw(md).write();
+
+              const { data: comments } = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+              });
+
+              const prev = comments.find(c => c.user.type === 'Bot' && c.body.includes('Grader Results'));
+              if (prev) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: prev.id,
+                });
+              }
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: md,
+              });           
 
       - name: Upload grader report
         if: always()
