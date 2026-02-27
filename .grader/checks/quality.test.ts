@@ -18,6 +18,7 @@ test.describe('Code Quality Validation', () => {
 
     test('spec files use expect() assertions', () => {
         const specs = readAllFiles(join(SRC_DIR, 'tests'), '.spec.ts');
+        expect(specs.length, 'No .spec.ts files found in tests/').toBeGreaterThan(0);
         for (const spec of specs) {
             expect(spec.content, `${spec.name} has no expect() assertions`).toContain('expect(');
         }
@@ -33,6 +34,7 @@ test.describe('Code Quality Validation', () => {
     });
     test('page classes exist and export a class', () => {
         const pages = readAllFiles(join(SRC_DIR, 'pages'), '.ts');
+        expect(pages.length, 'No page class files found in pages/').toBeGreaterThan(0);
         for (const page of pages) {
             expect(page.content, `${page.name} should export a class`).toMatch(/export\s+(default\s+)?class\s+/);
         }
@@ -51,6 +53,7 @@ test.describe('Code Quality Validation', () => {
             ...readAllFiles(join(SRC_DIR, 'tests'), '.spec.ts'),
             ...readAllFiles(join(SRC_DIR, 'pages'), '.ts'),
         ];
+        expect(allFiles.length, 'No source files found to validate imports').toBeGreaterThan(0);
         for (const file of allFiles) {
             const imports = [...file.content.matchAll(/import\s+\{([^}]+)\}/g)];
             for (const match of imports) {

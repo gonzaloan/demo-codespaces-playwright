@@ -37,70 +37,99 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            
+
             let results;
             try {
               results = JSON.parse(fs.readFileSync('grader-results.json', 'utf-8'));
             } catch (e) {
-              await core.summary.addRaw('Could not read grader results.').write();
+              await core.summary.addRaw('⚠️ Could not read grader results.').write();
               return;
             }
-            
-            function getSpecs(suite) {
-                const specs = [];
-                if (suite.specs) specs.push(...suite.specs);
-                if (suite.suites) for (const s of suite.suites) specs.push(...getSpecs(s));
-                return specs;
+
+            const categoryNames = {
+              'Project Structure Validation': '📁 Structure',
+              'Code Quality Validation': '🔍 Code Quality',
+              'Test Execution Validation': '▶️ Execution',
+            };
+
+            const categories = [];
+            for (const fileSuite of results.suites ?? []) {
+              for (const describeSuite of fileSuite.suites ?? []) {
+                categories.push({ name: describeSuite.title, specs: describeSuite.specs ?? [] });
               }
+            }
 
-              const allSpecs = results.suites?.flatMap(s => getSpecs(s)) ?? [];
-              const passed = allSpecs.filter(s => s.ok);
-              const failed = allSpecs.filter(s => !s.ok);
+            const allSpecs = categories.flatMap(c => c.specs);
+            const totalPassed = allSpecs.filter(s => s.ok).length;
+            const totalFailed = allSpecs.filter(s => !s.ok).length;
 
-              let md = `## Grader Results\n\n`;
-              md += `**${passed.length} passed** / **${failed.length} failed** out of ${allSpecs.length} checks\n\n`;
+            function formatError(spec) {
+              const error = spec.tests?.[0]?.results?.[0]?.error?.message;
+              if (!error) return '';
+              const clean = error.replace(/\x1b\[[0-9;]*m/g, '');
+              const lines = clean.split('\n')
+                .map(l => l.trim())
+                .filter(l => l.length > 0
+                  && !l.startsWith('at ')
+                  && !l.startsWith('Call log')
+                  && !l.startsWith('expect(')
+                  && !l.startsWith('Expected')
+                  && !l.startsWith('Received'));
+              return lines.slice(0, 4).map(l => `  > ${l}`).join('\n');
+            }
 
-              if (failed.length > 0) {
-                md += `### Failed\n\n`;
+            let md = `## Grader Results\n\n`;
+            md += `**${totalPassed} passed** / **${totalFailed} failed** out of ${allSpecs.length} checks\n\n`;
+
+            if (totalFailed > 0) {
+              md += `### ❌ Failed\n\n`;
+              for (const cat of categories) {
+                const failed = cat.specs.filter(s => !s.ok);
+                if (!failed.length) continue;
+                md += `**${categoryNames[cat.name] ?? cat.name}**\n\n`;
                 for (const spec of failed) {
-                  md += `- **${spec.title}**\n`;
-                  const error = spec.tests?.[0]?.results?.[0]?.error?.message;
-                  if (error) {
-                    const clean = error.replace(/\x1b\[[0-9;]*m/g, '').split('\n')[0];
-                    md += `  > ${clean}\n`;
-                  }
+                  md += `- ${spec.title}\n`;
+                  const err = formatError(spec);
+                  if (err) md += `${err}\n`;
                 }
                 md += '\n';
               }
+            }
 
-              if (passed.length > 0) {
-                md += `### Passed\n\n`;
+            if (totalPassed > 0) {
+              md += `### ✅ Passed\n\n`;
+              for (const cat of categories) {
+                const passed = cat.specs.filter(s => s.ok);
+                if (!passed.length) continue;
+                md += `**${categoryNames[cat.name] ?? cat.name}**\n\n`;
                 for (const spec of passed) md += `- ${spec.title}\n`;
+                md += '\n';
               }
+            }
 
-              await core.summary.addRaw(md).write();
+            await core.summary.addRaw(md).write();
 
-              const { data: comments } = await github.rest.issues.listComments({
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const prev = comments.find(c => c.user.type === 'Bot' && c.body.includes('Grader Results'));
+            if (prev) {
+              await github.rest.issues.deleteComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: context.issue.number,
+                comment_id: prev.id,
               });
+            }
 
-              const prev = comments.find(c => c.user.type === 'Bot' && c.body.includes('Grader Results'));
-              if (prev) {
-                await github.rest.issues.deleteComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  comment_id: prev.id,
-                });
-              }
-
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body: md,
-              });           
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: md,
+            });
 
       - name: Upload grader report
         if: always()
