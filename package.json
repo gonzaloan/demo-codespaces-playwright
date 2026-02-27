@@ -8,6 +8,7 @@
     "grade": "npx playwright test --config=.grader/grader.config.ts"
   },
   "devDependencies": {
+    "@faker-js/faker": "^9.0.0",
     "@playwright/test": "^1.58.2",
     "@types/node": "^22.19.11",
     "typescript": "^5.9.3"

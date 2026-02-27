@@ -83,4 +83,16 @@ test.describe('Code Quality Validation', () => {
         expect(navigates, 'No test calls page.goto() — make sure your test navigates to the application').toBe(true);
     });
 
+    test('tests use faker for dynamic data generation', () => {
+        const allFiles = [
+            ...readAllFiles(join(SRC_DIR, 'tests'), '.spec.ts'),
+            ...readAllFiles(join(SRC_DIR, 'pages'), '.ts'),
+        ];
+        expect(allFiles.length, 'No source files found to validate faker usage').toBeGreaterThan(0);
+        const usesFaker = allFiles.some(f =>
+            f.content.includes('@faker-js/faker') && f.content.includes('faker.')
+        );
+        expect(usesFaker, 'Use faker.js to generate dynamic user data instead of hardcoded values').toBe(true);
+    });
+
 });
