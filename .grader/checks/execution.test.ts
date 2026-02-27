@@ -22,7 +22,22 @@ test.describe('Test Execution Validation', () => {
 
             expect(failed.length, 'Some student tests failed').toBe(0);
         } catch (error: any) {
-            expect(false, `Student tests failed to execute:\n${error.stdout || error.message}`).toBe(true);
+            let message = 'Student tests failed to execute';
+            try {
+                const parsed = JSON.parse(error.stdout || '{}');
+                const failed = parsed.suites
+                    ?.flatMap((s: any) => s.specs ?? [])
+                    ?.filter((s: any) => s.ok === false) ?? [];
+                if (failed.length > 0) {
+                    const details = failed.map((s: any) => {
+                        const err = s.tests?.[0]?.results?.[0]?.error?.message ?? '';
+                        const clean = err.replace(/\x1b\[[0-9;]*m/g, '').split('\n').map((l: string) => l.trim()).filter((l: string) => l).slice(0, 2).join(' | ');
+                        return `- "${s.title}"${clean ? `: ${clean}` : ''}`;
+                    }).join('\n');
+                    message = `${failed.length} test(s) failed:\n${details}`;
+                }
+            } catch { /* stdout was not JSON, keep generic message */ }
+            expect(false, message).toBe(true);
         }
     });
 
